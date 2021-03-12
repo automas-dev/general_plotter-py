@@ -13,6 +13,8 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 from matplotlib.backend_bases import key_press_handler
 from matplotlib.figure import Figure
 
+from sbframe import VerticalScrolledFrame
+
 
 class GraphControl(ttk.Frame):
     def __init__(self, master):
@@ -50,30 +52,17 @@ class OptionDialog:
 
         ttk.Label(top, text=text).grid(row=0, column=0, columnspan=2, **pad)
 
-        c = tk.Canvas(top)
-        f = ttk.Frame(c)
+        f = VerticalScrolledFrame(top)
+        f.grid(row=1, column=0, columnspan=2, sticky=tk.NSEW)
 
-        self._canvas = c
-
-        vsb = ttk.Scrollbar(top, orient=tk.VERTICAL, command=c.yview)
-        c.configure(yscrollcommand=vsb.set)
-
-        vsb.grid(row=1, column=2, sticky=tk.NS)
-        c.grid(row=1, column=0, columnspan=2, sticky=tk.NSEW)
-        c.create_window((0, 0), window=f, anchor=tk.NW)
-        f.bind('<Configure>', self._configure)
-        
         for i, name in enumerate(options):
             var = tk.BooleanVar()
             self._vars.append((name, var))
-            ttk.Checkbutton(f, text=name, variable=var).pack(anchor=tk.W, **pad)
+            ttk.Checkbutton(f.interior, text=name, variable=var).pack(anchor=tk.W, **pad)
 
         row = len(options) + 1
         ttk.Button(top, text='Ok', command=self._ok).grid(row=row, column=0, **pad)
         ttk.Button(top, text='Cancel', command=self._cancel).grid(row=row, column=1, **pad)
-
-    def _configure(self, event):
-        self._canvas.configure(scrollregion=self._canvas.bbox(tk.ALL), width=200, height=300)
 
     def show(self):
         self._top.wait_window()
@@ -102,7 +91,10 @@ class App(ttk.Frame):
     def __init__(self, master):
         super().__init__(master)
 
-        ttk.Button(self, text='Open File', command=self._open).pack()
+        pad = {'padx': 4, 'pady': 4}
+
+        ttk.Label(self, text='Use the button bellow to open a csv or tsv file').pack(**pad)
+        ttk.Button(self, text='Open File', command=self._open).pack(**pad)
 
     def _open(self):
         filename = filedialog.askopenfilename(parent=self, filetypes=[('CSV', '*.csv'), ('TSV', '*.txt'), ('TSV', '*.xlm'), ('All Files', '*.*')])
@@ -141,7 +133,7 @@ class App(ttk.Frame):
         top = tk.Toplevel(self.master)
         top.title('GPS Tracks')
         g = GraphControl(top)
-        g.pack()
+        g.pack(fill=tk.BOTH, expand=True)
 
         ax = g.add_subplot(111)
         for plot, label in zip(plots, legend):
