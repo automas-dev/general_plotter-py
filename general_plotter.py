@@ -2,11 +2,11 @@
 
 import os
 import wx
-from wx.lib import sized_controls
 import wx.lib.agw.aui as aui
 import csv
 
-import matplotlib as mpl
+import matplotlib.axes
+import matplotlib.figure
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg as NavigationToolbar
 
@@ -14,7 +14,7 @@ from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg as Navigat
 class Plot(wx.Panel):
     def __init__(self, parent, id=-1, dpi=None, **kwargs):
         super().__init__(parent, id=id, **kwargs)
-        self.figure = mpl.figure.Figure(dpi=dpi, figsize=(2, 2))
+        self.figure = matplotlib.figure.Figure(dpi=dpi, figsize=(2, 2))
         self.canvas = FigureCanvas(self, -1, self.figure)
         self.toolbar = NavigationToolbar(self.canvas)
         self.toolbar.Realize()
@@ -29,8 +29,8 @@ class Plot(wx.Panel):
         self.lines = []
         self.lined = {}
 
-    def gca(self):
-        return self.figure.gca()
+    def gca(self) -> matplotlib.axes.Axes:
+        return self.figure.gca() # type: ignore
 
     def clear(self):
         self.lines.clear()
@@ -94,11 +94,9 @@ def try_float(text):
         return float('nan')
 
 
-class SelectColumnDialog(sized_controls.SizedDialog):
-
+class SelectColumnDialog(wx.Dialog):
     def __init__(self, parent, title, choices):
         super().__init__(parent, title=title)
-        self.Bind(wx.EVT_CLOSE, self.on_close)
 
         sizer = wx.BoxSizer(wx.VERTICAL)
 
@@ -118,7 +116,7 @@ class SelectColumnDialog(sized_controls.SizedDialog):
     def GetCheckedStrings(self):
         return self._check.GetCheckedStrings()
 
-    def on_close(self, event):
+    def OnClose(self, event):
         print('on_close')
         self.EndModal(wx.CANCEL)
 
@@ -241,6 +239,8 @@ class GeneralPlotterFrame(wx.Frame):
             for i, col in enumerate(cols):
                 col_i = selected[i]
                 head = headers[col_i]
+                if not head:
+                    head = 'Column {}'.format(col_i + 1)
                 page.plot(col, label=head)
 
             page.enable_picker()
