@@ -1,4 +1,4 @@
 #!/bin/bash
 
-python ./general_plotter.py
+python ./plotter.py
 
