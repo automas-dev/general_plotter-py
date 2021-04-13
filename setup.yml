@@ -1,4 +1,4 @@
-name: general_plotter
+name: plotter
 version: 1.0
 author: Thomas Harrison
 author_email: twh2898@vt.edu
@@ -11,6 +11,6 @@ keywords: utility plotting
 url: ""
 license: MIT
 scripts:
-    - general_plotter.py
+    - plotter.py
 include_package_data: True
 zip_safe: False
