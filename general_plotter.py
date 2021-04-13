@@ -95,17 +95,20 @@ def try_float(text):
 
 
 class SelectColumnDialog(wx.Dialog):
-    def __init__(self, parent, title, choices):
+    def __init__(self, parent, title, pathname, choices):
         super().__init__(parent, title=title)
 
         sizer = wx.BoxSizer(wx.VERTICAL)
+
+        text = wx.StaticText(self, label=pathname)
+        sizer.Add(text, 0, wx.ALL | wx.EXPAND, 5)
 
         self._check = ck = wx.CheckListBox(self, id=wx.ID_ANY, choices=choices)
         sizer.Add(self._check, 1, wx.ALL | wx.EXPAND, 5)
 
         buttons = self.CreateButtonSizer(wx.OK | wx.CANCEL)
         if buttons is not None:
-            sizer.Add(buttons, 0, wx.ALL | wx.HORIZONTAL, 5)
+            sizer.Add(buttons, 0, wx.ALL | wx.EXPAND, 5)
 
         self.SetSizer(sizer)
         self.Fit()
@@ -147,16 +150,20 @@ class GeneralPlotterFrame(wx.Frame):
                   id=self.m_openmenuitem.GetId())
 
     def openfiledialog(self, event):
-        with wx.FileDialog(self, "Open Data File", wildcard="All Files (*.*)|*.*", style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
+        with wx.FileDialog(self, "Open Data File", wildcard="All Files (*.*)|*.*", style=wx.FD_OPEN | wx.FD_MULTIPLE | wx.FD_FILE_MUST_EXIST) as fileDialog:
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
 
-            pathname = fileDialog.GetPath()
-
-            try:
-                self.load(pathname)
-            except IOError:
-                wx.LogError('Cannot open file %s' % pathname)
+            for pathname in fileDialog.GetPaths():
+                try:
+                    continue_loading = self.load(pathname)
+                    if not continue_loading:
+                        diag = wx.MessageDialog(
+                            self, "You canceled loading the last file, continue loading the remaining files?", "Continue Loading?", style=wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION)
+                        if diag.ShowModal() != wx.ID_YES:
+                            break
+                except IOError:
+                    wx.LogError('Cannot open file %s' % pathname)
 
     def _find_delim(self, pathname, sample=10):
         with open(pathname, 'r') as f:
@@ -206,14 +213,16 @@ class GeneralPlotterFrame(wx.Frame):
         return None
 
     def load(self, pathname, delim=None):
+        """Return True if select column dialog was canceled."""
         base = os.path.basename(pathname)
+        relpath = os.path.relpath(pathname)
         if delim is None:
             delim = self._find_delim(pathname)
 
         if delim is None:
             wx.MessageDialog(
                 self, "Unable to deduce file type", "Unknown File Type", style=wx.OK | wx.ICON_ERROR)
-            return
+            return True
 
         with open(pathname, 'r', newline='') as f:
             reader = csv.reader(f, delimiter=delim)
@@ -221,9 +230,9 @@ class GeneralPlotterFrame(wx.Frame):
             while len(headers) == 0:
                 headers = next(reader)
 
-            diag = SelectColumnDialog(self, 'Select Columns', headers)
+            diag = SelectColumnDialog(self, 'Select Columns', relpath, headers)
             if diag.ShowModal() == wx.ID_CANCEL:
-                return
+                return False
 
             selected = diag.GetCheckedItems()
 
@@ -245,6 +254,7 @@ class GeneralPlotterFrame(wx.Frame):
 
             page.enable_picker()
             page.draw()
+            return True
 
 
 if __name__ == '__main__':
