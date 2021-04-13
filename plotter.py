@@ -154,10 +154,11 @@ class GeneralPlotterFrame(wx.Frame):
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
 
-            for pathname in fileDialog.GetPaths():
+            paths = fileDialog.GetPaths()
+            for i, pathname in enumerate(paths):
                 try:
                     continue_loading = self.load(pathname)
-                    if not continue_loading:
+                    if not continue_loading and i < len(paths) - 1:
                         diag = wx.MessageDialog(
                             self, "You canceled loading the last file, continue loading the remaining files?", "Continue Loading?", style=wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION)
                         if diag.ShowModal() != wx.ID_YES:
@@ -221,7 +222,7 @@ class GeneralPlotterFrame(wx.Frame):
 
         if delim is None:
             wx.MessageDialog(
-                self, "Unable to deduce file type", "Unknown File Type", style=wx.OK | wx.ICON_ERROR)
+                self, "Unable to deduce file type", "Unknown File Type", style=wx.OK | wx.ICON_ERROR).ShowModal()
             return True
 
         with open(pathname, 'r', newline='') as f:
@@ -235,6 +236,14 @@ class GeneralPlotterFrame(wx.Frame):
                 return False
 
             selected = diag.GetCheckedItems()
+
+            if len(selected) == 0:
+                diag = wx.MessageDialog(
+                    self, "You did not select any columns, would you like to skip loading this file?", "No columns selected", style=wx.YES_NO | wx.ICON_WARNING)
+                if diag.ShowModal() == wx.ID_YES:
+                    return self.load(pathname, delim)
+                else:
+                    return False
 
             cols = [[] for _ in selected]
             for row in reader:
