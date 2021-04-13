@@ -94,31 +94,22 @@ def try_float(text):
         return float('nan')
 
 
-class CustomDialog(sized_controls.SizedDialog):
+class SelectColumnDialog(sized_controls.SizedDialog):
 
     def __init__(self, parent, title, choices):
         super().__init__(parent, title=title)
-        pane = self.GetContentsPane()
+        self.Bind(wx.EVT_CLOSE, self.on_close)
 
-        static_line = wx.StaticLine(pane, style=wx.LI_HORIZONTAL)
-        static_line.SetSizerProps(border=(('all', 0)), expand=True)
+        sizer = wx.BoxSizer(wx.VERTICAL)
 
-        pane_btns = sized_controls.SizedPanel(pane)
-        pane_btns.SetSizerType('vertical')
-        pane_btns.SetSizerProps(align='center')
+        self._check = ck = wx.CheckListBox(self, id=wx.ID_ANY, choices=choices)
+        sizer.Add(self._check, 1, wx.ALL | wx.EXPAND, 5)
 
-        self._check = ck = wx.CheckListBox(
-            pane_btns, id=wx.ID_ANY, choices=choices)
+        buttons = self.CreateButtonSizer(wx.OK | wx.CANCEL)
+        if buttons is not None:
+            sizer.Add(buttons, 0, wx.ALL | wx.HORIZONTAL, 5)
 
-        self.ID_OK = wx.NewId()
-        self.ID_CANCEL = wx.NewId()
-
-        button_ok = wx.Button(pane_btns, self.ID_OK, label='Ok')
-        button_ok.Bind(wx.EVT_BUTTON, self.on_button)
-
-        button_ok = wx.Button(pane_btns, self.ID_CANCEL, label='Cancel')
-        button_ok.Bind(wx.EVT_BUTTON, self.on_button)
-
+        self.SetSizer(sizer)
         self.Fit()
 
     def GetCheckedItems(self):
@@ -127,14 +118,9 @@ class CustomDialog(sized_controls.SizedDialog):
     def GetCheckedStrings(self):
         return self._check.GetCheckedStrings()
 
-    def on_button(self, event):
-        if self.IsModal():
-            if event.EventObject.Id == self.ID_OK:
-                self.EndModal(True)
-            else:
-                self.EndModal(False)
-        else:
-            self.Close()
+    def on_close(self, event):
+        print('on_close')
+        self.EndModal(wx.CANCEL)
 
 
 class GeneralPlotterFrame(wx.Frame):
@@ -144,13 +130,7 @@ class GeneralPlotterFrame(wx.Frame):
         sizer1 = wx.BoxSizer(wx.HORIZONTAL)
 
         self.plotter = PlotNotebook(self)
-        #self.page1 = plotter.add('Illuminance')
-        #self.page2 = plotter.add('GPS Track')
-
         sizer1.Add(self.plotter, 1, wx.ALL | wx.EXPAND, 5)
-
-        #self.page1.config('Illuminance', 'Index', 'Illuminance, lx')
-        #self.page2.config('GPS Track', 'Longitude', 'Latitude', inverty=True)
 
         self.SetSizer(sizer1)
 
@@ -169,7 +149,7 @@ class GeneralPlotterFrame(wx.Frame):
                   id=self.m_openmenuitem.GetId())
 
     def openfiledialog(self, event):
-        with wx.FileDialog(self, "Open RLMMS Data File", wildcard="CSV File (*.csv)|*.csv|XLM Data (*.xlm)|*.xlm|RLMMS Data (*.txt)|*.txt|All Files (*.*)|*.*", style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
+        with wx.FileDialog(self, "Open Data File", wildcard="All Files (*.*)|*.*", style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
 
@@ -180,53 +160,74 @@ class GeneralPlotterFrame(wx.Frame):
             except IOError:
                 wx.LogError('Cannot open file %s' % pathname)
 
-    def load(self, pathname):
-        with open(pathname, 'r', newline='') as f:
-            base = os.path.basename(pathname)
-
+    def _find_delim(self, pathname, sample=10):
+        with open(pathname, 'r') as f:
             n_tab = []
             n_comma = []
             for line in f:
-                if len(line) == 0:
-                    continue
-                n_tab.append(line.count('\t'))
-                n_comma.append(line.count(','))
-
-                if len(n_tab) > 10:
+                if len(line.strip()) > 0:
+                    n_tab.append(line.count('\t'))
+                    n_comma.append(line.count(','))
+                if len(n_tab) > sample:
                     break
 
             if len(n_tab) == 0:
-                wx.MessageDialog(
-                    self, "Unable to deduce file type of an empty file", style=wx.OK | wx.ICON_ERROR)
-                return
+                return None
 
             count_tab = n_tab.count(n_tab[0])
             count_comma = n_comma.count(n_comma[0])
 
-            if count_tab == 0 and count_comma == 0:
+            can_tab = count_tab == len(n_tab) and n_tab[0] > 0
+            can_comma = count_comma == len(n_tab) and n_comma[0] > 0
+
+            if not can_tab and not can_comma:
                 wx.MessageDialog(
-                    self, "Unable to deduce file type based on content, using extension", style=wx.OK | wx.ICON_WARNING)
+                    self, "Unable to deduce file type based on content, using extension", style=wx.OK | wx.ICON_WARNING).ShowModal()
                 is_tab = any(pathname.endswith(ext)
                              for ext in ['.txt', '.xlm'])
+                if is_tab:
+                    return '\t'
+                else:
+                    return ','
+            elif not can_tab and can_comma:
+                if n_comma[0] == 0:
+                    return None
+                else:
+                    return ','
+            elif can_tab and not can_comma:
+                if n_tab[0] == 0:
+                    return None
+                else:
+                    return '\t'
             else:
-                is_tab = count_tab > count_comma
+                if n_tab[0] > n_comma[0]:
+                    return '\t'
+                else:
+                    return ','
 
-            f.seek(0)
+        return None
 
-            delim = '\t' if is_tab else ','
+    def load(self, pathname, delim=None):
+        base = os.path.basename(pathname)
+        if delim is None:
+            delim = self._find_delim(pathname)
 
+        if delim is None:
+            wx.MessageDialog(
+                self, "Unable to deduce file type", "Unknown File Type", style=wx.OK | wx.ICON_ERROR)
+            return
+
+        with open(pathname, 'r', newline='') as f:
             reader = csv.reader(f, delimiter=delim)
             headers = next(reader)
             while len(headers) == 0:
                 headers = next(reader)
 
-            diag = CustomDialog(self, 'title', headers)
-            if not diag.ShowModal():
+            diag = SelectColumnDialog(self, 'Select Columns', headers)
+            if diag.ShowModal() == wx.ID_CANCEL:
                 return
 
             selected = diag.GetCheckedItems()
-            print(selected)
-            print(diag.GetCheckedStrings())
 
             cols = [[] for _ in selected]
             for row in reader:
