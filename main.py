@@ -125,7 +125,10 @@ class App(ttk.Frame):
             rows = filter(lambda row: len(row) > 0, reader)
             for row in rows:
                 for i, (col, name) in enumerate(cols):
-                    val = float(row[col])
+                    try:
+                        val = float(row[col])
+                    except Exception:
+                        val = 0.0
                     plots[i].append(val)
             self._show_graph(plots, path.name, path.parent, 'Index', 'Value', colnames)
  
