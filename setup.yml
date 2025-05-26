@@ -1,7 +1,7 @@
 name: plotter
 version: 1.0
 author: Thomas Harrison
-author_email: twh2898@vt.edu
+author_email: theharrisoncrafter@gmail.com
 description: Plotting utility for tsv and csv files
 classifiers:
     - "Development Status :: 3 - Alpha"
